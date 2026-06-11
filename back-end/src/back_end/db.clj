@@ -7,7 +7,9 @@
   )
 
 (defn adicionar_caloria [valor]
-  (let [colecao_atualizada(swap! registro_calorias conj valor)]
-    (merge valor {:id (count colecao_atualizada)})
-    )
+  (let [id-novo (count @registro_calorias)
+        valor-com-id (assoc valor :id id-novo)]
+    (swap! registro_calorias conj valor-com-id)
+    valor-com-id)
   )
+  
