@@ -12,4 +12,12 @@
     (swap! registro_calorias conj valor-com-id)
     valor-com-id)
   )
-  
+
+(def dados_usuario (atom {}))
+
+(defn consultar_usuario []
+  @dados_usuario)
+
+(defn registrar_usuario [dados]
+  (reset! dados_usuario dados)
+  @dados_usuario)
