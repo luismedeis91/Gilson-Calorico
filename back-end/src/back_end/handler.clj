@@ -30,16 +30,16 @@
           resultado (db/adicionar_caloria dados-convertidos)]
       (como-json resultado)))
 
+  (GET "/usuario" [] 
+    (como-json (db/consultar_usuario)))
+
+  (POST "/usuario" requi 
+    (let [corpo-texto (slurp (:body requi))
+          dados-convertidos (json/parse-string corpo-texto true)
+          resultado (db/registrar_usuario dados-convertidos)]
+      (como-json resultado)))
+
   (route/not-found "Not Found"))
 
 (def app
   (wrap-defaults app-routes api-defaults))
-
-(GET "/usuario" [] 
-    (como-json (db/consultar_usuario)))
-
-(POST "/usuario" requi 
-  (let [corpo-texto (slurp (:body requi))
-        dados-convertidos (json/parse-string corpo-texto true)
-        resultado (db/registrar_usuario dados-convertidos)]
-    (como-json resultado)))
