@@ -160,7 +160,7 @@
         resposta (calorias_alimentos alimento)
         dados (or (:data resposta) (:foods resposta)) 
         primeiro-item (first dados)
-        nome-item (:name primeiro-item)
+        nome-item (or (:name primeiro-item) alimento)
         calorias (or (:calories_100g primeiro-item) (:calories primeiro-item))]
         (if calorias
             (do
@@ -172,7 +172,12 @@
                     calorias-ajustadas (* calorias (/ quantidade 100.0))]
                 (adicionar_consumo_alimento nome-item calorias-ajustadas quantidade data))
               (println "Alimento registrado com sucesso."))
-            (println "Alimento nao encontrado na base."))
+            (do (println "Nenhum alimento encontrado na base. Digite quantas calorias voce consumiu:")
+                (let [calorias-str (read-line)
+                      calorias-manual (try (Double/parseDouble calorias-str) (catch Exception _ 0))
+                      data (ler-data)]
+                  (adicionar_consumo_alimento nome-item calorias-manual 1.0 data)
+                  (println "Alimento registrado com sucesso."))))
     ))
 
       (= escolha 3)(do (println "Digite a atividade fisica que voce deseja registrar")
