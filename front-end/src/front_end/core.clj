@@ -7,6 +7,10 @@
   )
 
 (def chave "fn_9mC2Bv4kFnEn0ePOGDlohi4cEj4_-YTLdhZLKCd7W0g")
+(def chave-ninjas
+  (or (System/getenv "API_NINJAS_KEY")
+      (System/getenv "NINJAS_API_KEY")
+      "hpb0g0UgQHbkfkkxfASQE3rJbRlhnSpiafX6NCNH"))
 
 
 (defn calorias_alimentos [alimento]
@@ -17,39 +21,52 @@
   (json/parse-string (:body response) true))
   (catch Exception e (println "Erro ao conectar na API: " (.getMessage e)) nil)))
 
-(defn buscar_exercicio [atividade]
+(defn buscar_exercicio [atividade minutos peso-libras]
   (try
-    (let [response (http/get "https://wger.de/api/v2/exerciseinfo/"
-                             {:query-params {"language" 2
-                                             "limit" 5
-                                             "name" atividade}
+    (let [response (http/get "https://api.api-ninjas.com/v1/caloriesburned"
+                             {:query-params (cond-> {"activity" atividade
+                                                     "duration" minutos}
+                                              peso-libras (assoc "weight" peso-libras))
+                              :headers {"X-Api-Key" chave-ninjas}
                               :as :string})]
       (json/parse-string (:body response) true))
     (catch Exception e
       (println "Erro ao conectar na API de exercicios:" (.getMessage e))
       nil)))
 
-(defn consulta_calorias []
-  (:body (http/get (str "http://localhost:3000/calorias")))
-  )
+(defn consulta_calorias
+  ([] (consulta_calorias nil nil))
+  ([inicio fim]
+   (:body (http/get "http://localhost:3000/calorias"
+                    {:query-params (cond-> {}
+                                     inicio (assoc "inicio" inicio)
+                                     fim (assoc "fim" fim))}))))
 
-(defn consulta_saldo []
-  (:body (http/get "http://localhost:3000/saldo"))
-  )
+(defn consulta_saldo
+  ([] (consulta_saldo nil nil))
+  ([inicio fim]
+   (:body (http/get "http://localhost:3000/saldo"
+                    {:query-params (cond-> {}
+                                     inicio (assoc "inicio" inicio)
+                                     fim (assoc "fim" fim))}))))
 
-(defn adicionar_consumo_alimento [nome calorias]
+(defn adicionar_consumo_alimento [nome calorias quantidade data]
   (http/post (str "http://localhost:3000/adicionar_calorias")
              {:content-type :json
               :body (json/generate-string {:nome nome
                                            :tipo "ganho"
-                                           :calorias calorias})}))
+                                           :calorias calorias
+                                           :quantidade quantidade
+                                           :data data})}))
 
-(defn registrar_atividade [nome calorias]
+(defn registrar_atividade [nome calorias duracao data]
   (http/post "http://localhost:3000/adicionar_calorias"
              {:content-type :json
               :body (json/generate-string {:atividade nome
                                            :tipo "gasto"
-                                           :calorias calorias})}))
+                                           :calorias calorias
+                                           :duracao duracao
+                                           :data data})}))
 
 (defn consultar_dados_pessoais []
   (:body (http/get "http://localhost:3000/usuario")))
@@ -67,27 +84,42 @@
                                            :idade idade
                                            :sexo sexo})}))
 
-(def met-por-categoria
-  {"Cardio" 8.0
-   "Legs" 6.0
-   "Arms" 4.5
-   "Shoulders" 4.5
-   "Back" 5.5
-   "Chest" 5.0
-   "Abs" 4.0
-   "Calves" 4.5
-   "Full body" 6.5})
+(defn opcoes-exercicio [resposta]
+  (vec
+   (take 5
+         (map (fn [exercicio]
+                {:nome (:name exercicio)
+                 :calorias (:total_calories exercicio)
+                 :duracao (:duration_minutes exercicio)})
+              resposta))))
 
-(defn primeiro-exercicio [resposta]
-  (let [exercicio (first (:results resposta))
-        traducao (first (:translations exercicio))]
-    (when traducao
-      {:nome (:name traducao)
-       :categoria (get-in exercicio [:category :name])})))
+(defn escolher-exercicio [opcoes]
+  (doseq [[indice exercicio] (map-indexed vector opcoes)]
+    (println (str (inc indice) " - " (:nome exercicio)
+                  (when (:calorias exercicio)
+                    (str " - " (:calorias exercicio) " calorias")))))
+  (println "Escolha o numero do exercicio:")
+  (let [entrada (read-line)
+        escolha (try (Integer/parseInt entrada) (catch Exception _ -1))]
+    (get opcoes (dec escolha))))
 
-(defn estimar_calorias_exercicio [peso minutos categoria]
-  (let [met (get met-por-categoria categoria 5.0)]
-    (/ (* met peso 3.5 minutos) 200.0)))
+(defn kg-para-libras [peso-kg]
+  (* peso-kg 2.20462))
+
+(defn ler-data []
+  (println "Digite a data no formato DD/MM/AAAA:")
+  (read-line))
+
+(defn ler-periodo []
+  (println "Digite a data inicial no formato DD/MM/AAAA:")
+  (let [inicio (read-line)]
+    (println "Digite a data final no formato DD/MM/AAAA:")
+    (let [fim (read-line)]
+      [inicio fim])))
+
+(defn ler-tipo-consulta []
+  (println "Digite 1 para consultar tudo ou 2 para consultar por periodo:")
+  (read-line))
 
 (defn executar-menu []
   (println "--------------------------------")
@@ -131,46 +163,56 @@
         (if calorias
             (do
               (println (str "Calorias do alimento " nome-item ": " calorias " calorias encontradas."))
-              (adicionar_consumo_alimento nome-item calorias)
+              (println "Digite a quantidade consumida em gramas:")
+              (let [quantidade-str (read-line)
+                    quantidade (try (Double/parseDouble quantidade-str) (catch Exception _ 100.0))
+                    data (ler-data)
+                    calorias-ajustadas (* calorias (/ quantidade 100.0))]
+                (adicionar_consumo_alimento nome-item calorias-ajustadas quantidade data))
               (println "Alimento registrado com sucesso."))
             (println "Alimento nao encontrado na base."))
     ))
 
       (= escolha 3)(do (println "Digite a atividade fisíca que voce deseja registrar")
       (let [atividade (read-line)
-            resposta (buscar_exercicio atividade)
-            exercicio (primeiro-exercicio resposta)
-            nome-atividade (or (:nome exercicio) atividade)
-            categoria (:categoria exercicio)
             dados-pessoais (consultar_dados_pessoais-json)
             peso-usuario (try (Double/parseDouble (str (:peso dados-pessoais)))
                               (catch Exception _ nil))]
-          (if exercicio
-            (println (str "Exercicio encontrado na API: " nome-atividade
-                          (when categoria (str " (" categoria ")"))))
-            (println "Nenhum exercicio encontrado na API. Usando o nome digitado."))
-
-          (if peso-usuario
-            (do
-              (println "Quantos minutos voce praticou essa atividade?")
-              (let [minutos-str (read-line)
-                    minutos (try (Double/parseDouble minutos-str) (catch Exception _ 0))
-                    calorias-num (estimar_calorias_exercicio peso-usuario minutos categoria)]
-                (registrar_atividade nome-atividade calorias-num)
+          (println "Quantos minutos voce praticou essa atividade?")
+          (let [minutos-str (read-line)
+                minutos (try (Double/parseDouble minutos-str) (catch Exception _ 0))
+                peso-libras (when peso-usuario (kg-para-libras peso-usuario))
+                resposta (buscar_exercicio atividade minutos peso-libras)
+                opcoes (opcoes-exercicio resposta)
+                exercicio (when (seq opcoes) (escolher-exercicio opcoes))
+                nome-atividade (or (:nome exercicio) atividade)
+                calorias-num (double (or (:calorias exercicio) 0))
+                data (ler-data)]
+            (if exercicio
+              (do
+                (registrar_atividade nome-atividade calorias-num minutos data)
                 (println (str "Atividade registrada com sucesso. Gasto estimado: "
-                              (format "%.2f" calorias-num) " calorias."))))
-            (do
-              (println "Peso do usuario nao cadastrado. Digite quantas calorias voce gastou:")
-              (let [calorias-str (read-line)
-                    calorias-num (try (Double/parseDouble calorias-str) (catch Exception e 0))]
-                (registrar_atividade nome-atividade calorias-num)
-                (println "Atividade registrada com sucesso."))))))
+                              (format "%.2f" calorias-num) " calorias.")))
+              (do
+                (println "Nenhum exercicio encontrado na API. Digite quantas calorias voce gastou:")
+                (let [calorias-str (read-line)
+                      calorias-manual (try (Double/parseDouble calorias-str) (catch Exception _ 0))]
+                  (registrar_atividade nome-atividade calorias-manual minutos data)
+                  (println "Atividade registrada com sucesso.")))))))
 
       (= escolha 4)(do (println "Consulta de extrato de transacoes")
-      (println (consulta_calorias)))
+      (let [tipo-consulta (ler-tipo-consulta)]
+        (if (= tipo-consulta "1")
+          (println (consulta_calorias))
+          (let [[inicio fim] (ler-periodo)]
+            (println (consulta_calorias inicio fim))))))
 
-      (= escolha 5)(do (println "Consulta de extrato de transacoes")
-      (println (consulta_saldo)))
+      (= escolha 5)(do (println "Consulta de saldo de calorias")
+      (let [tipo-consulta (ler-tipo-consulta)]
+        (if (= tipo-consulta "1")
+          (println (consulta_saldo))
+          (let [[inicio fim] (ler-periodo)]
+            (println (consulta_saldo inicio fim))))))
 
       (= escolha 0)(println "Encerrando a Calculadora.")
 
