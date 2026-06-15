@@ -23,10 +23,12 @@
 
 (defn buscar_exercicio [atividade minutos peso-libras]
   (try
-    (let [response (http/get "https://api.api-ninjas.com/v1/caloriesburned"
-                             {:query-params (cond-> {"activity" atividade
-                                                     "duration" minutos}
-                                              peso-libras (assoc "weight" peso-libras))
+    (let [duracao-int (max 1 (int minutos))
+          params (cond-> {"activity" atividade
+                          "duration" duracao-int}
+                          peso-libras (assoc "weight" (max 50 (min 500 (int peso-libras)))))
+      response (http/get "https://api.api-ninjas.com/v1/caloriesburned"
+                             {:query-params params
                               :headers {"X-Api-Key" chave-ninjas}
                               :as :string})]
       (json/parse-string (:body response) true))
@@ -128,7 +130,7 @@
   (println "--------------------------------")
   (println "1 - Cadastrar/consultar dados pessoais")
   (println "2 - Registrar consumo de alimento ")
-  (println "3 - Registrar realizacao de atividade física")
+  (println "3 - Registrar realizacao de atividade fisica")
   (println "4 - Consultar extrato de transacoes")
   (println "5 - Consultar saldo de calorias")
   (println "0 - Sair do Sistema")
@@ -173,7 +175,7 @@
             (println "Alimento nao encontrado na base."))
     ))
 
-      (= escolha 3)(do (println "Digite a atividade fisíca que voce deseja registrar")
+      (= escolha 3)(do (println "Digite a atividade fisica que voce deseja registrar")
       (let [atividade (read-line)
             dados-pessoais (consultar_dados_pessoais-json)
             peso-usuario (try (Double/parseDouble (str (:peso dados-pessoais)))
