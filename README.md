@@ -3,7 +3,7 @@ Esse projeto utiliza o Leiningen para construção de código, gerenciamento de 
 A API escolhida para o projeto foi a "BusyBody Calorie API"
 
 ## Como executar
-Abra o Prompt de Comando na pasta "back-end" e execute o comando a seguir no terminal:
+Abra o terminal na pasta "back-end" e execute o comando a seguir no terminal:
 ```
 lein ring server-headless 3000
 ```
